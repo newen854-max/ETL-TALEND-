@@ -2,7 +2,7 @@ name: Build Mobile ETL APK
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "master" ] # Automatically triggers on both "main" and "master" branches
   workflow_dispatch:
 
 jobs:
@@ -19,14 +19,41 @@ jobs:
           java-version: '17'
           cache: 'gradle'
 
-      - name: Grant Execute Permission to Gradlew
-        run: chmod +x ./gradlew
-
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug
+      - name: Locate, Permiss, and Build Android Project
+        run: |
+          # 1. Automatically find the gradlew file inside your repository
+          GRADLEW_PATH=$(find . -name "gradlew" -print -quit)
+          
+          if [ -z "$GRADLEW_PATH" ]; then
+            echo "::error::gradlew wrapper file could not be found anywhere in your repository directory tree! Please make sure you have committed the 'gradlew' file."
+            exit 1
+          fi
+          
+          GRADLEW_DIR=$(dirname "$GRADLEW_PATH")
+          echo "Found gradlew wrapper at: $GRADLEW_PATH"
+          echo "Target project directory: $GRADLEW_DIR"
+          
+          # 2. Navigate to that directory and grant execute permissions
+          cd "$GRADLEW_DIR"
+          chmod +x ./gradlew
+          
+          # 3. Compile the debug APK
+          ./gradlew assembleDebug
+          
+          # 4. Find the generated APK path and save it to the GitHub Environment for the next step
+          APK_RELATIVE_PATH=$(find . -name "app-debug.apk" -print -quit)
+          if [ -z "$APK_RELATIVE_PATH" ]; then
+            echo "::error::Compilation finished but could not locate the compiled app-debug.apk output file!"
+            exit 1
+          fi
+          
+          # Resolve the clean absolute path to the APK
+          REAL_APK_PATH=$(realpath "$APK_RELATIVE_PATH")
+          echo "Generated APK is located at: $REAL_APK_PATH"
+          echo "APK_PATH=$REAL_APK_PATH" >> $GITHUB_ENV
 
       - name: Upload Compiled APK
         uses: actions/upload-artifact@v4
         with:
           name: Mobile-ETL-Engine
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: ${{ env.APK_PATH }}
