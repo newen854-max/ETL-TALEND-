@@ -18,80 +18,38 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      # 1. Install Gradle directly on the virtual machine
+      # Install Gradle directly on the VM
       - name: Install System Gradle
         run: |
           sudo apt-get update
           sudo apt-get install -y gradle
 
-      # 2. Find where your project is and generate gradlew automatically
+      # Find project location and generate standard wrapper
       - name: Auto-Generate Gradle Wrapper
         run: |
           SETTINGS_PATH=$(find . -name "settings.gradle" -print -quit)
           if [ -z "$SETTINGS_PATH" ]; then
-            echo "::error::Could not find settings.gradle. Please ensure your project folders are uploaded to GitHub."
+            echo "Error: Could not find settings.gradle in repository!"
             exit 1
           fi
           PROJECT_DIR=$(dirname "$SETTINGS_PATH")
-          echo "Android project found at: $PROJECT_DIR"
+          echo "Project directory found: $PROJECT_DIR"
           
           cd "$PROJECT_DIR"
-          
-          # Generate the wrapper files dynamically
-          echo "Generating Gradle wrapper..."
           gradle wrapper --gradle-version 8.2
-          
-          # Ensure execution permissions are granted
           chmod +x ./gradlew
-          
-          # Save the folder path for the next step
-          echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
 
-      # 3. Build the app using the newly generated wrapper
+      # Build using a wild-card search execution to compile
       - name: Build Debug APK
         run: |
-          cd "${{ env.PROJECT_DIR }}"
-          ./gradlew assembleDebug
-
-      # 4. Find the finished APK file
-      - name: Locate Compiled APK
-        run: |
-          cd "${{ env.PROJECT_DIR }}"
-          APK_PATH=$(find . -name "app-debug.apk" -print -quit)
-          if [ -z "$APK_PATH" ]; then
-            echo "::error::Could not locate the compiled app-debug.apk output file!"
-            exit 1
-          fi
-          REAL_PATH=$(realpath "$APK_PATH")
-          echo "Found APK at: $REAL_PATH"
-          echo "APK_UPLOAD_PATH=$REAL_PATH" >> $GITHUB_ENV
-
-      # 5. Save the APK as a download link
-      - name: Upload Compiled APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: Mobile-ETL-Engine
-          path: ${{ env.APK_UPLOAD_PATH }}
+          GRADLEW_EXEC=$(find . -name "gradlew" -print -quit)
+          GRADLEW_DIR=$(dirname "$GRADLEW_EXEC")
           cd "$GRADLEW_DIR"
-          chmod +x ./gradlew
-          
-          # 3. Compile the debug APK
           ./gradlew assembleDebug
-          
-          # 4. Find the generated APK path and save it to the GitHub Environment for the next step
-          APK_RELATIVE_PATH=$(find . -name "app-debug.apk" -print -quit)
-          if [ -z "$APK_RELATIVE_PATH" ]; then
-            echo "::error::Compilation finished but could not locate the compiled app-debug.apk output file!"
-            exit 1
-          fi
-          
-          # Resolve the clean absolute path to the APK
-          REAL_APK_PATH=$(realpath "$APK_RELATIVE_PATH")
-          echo "Generated APK is located at: $REAL_APK_PATH"
-          echo "APK_PATH=$REAL_APK_PATH" >> $GITHUB_ENV
 
+      # Upload any app-debug.apk output file found anywhere in your repository
       - name: Upload Compiled APK
         uses: actions/upload-artifact@v4
         with:
           name: Mobile-ETL-Engine
-          path: ${{ env.APK_PATH }}
+          path: "**/build/outputs/apk/debug/app-debug.apk"
