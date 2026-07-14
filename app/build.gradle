@@ -3,6 +3,12 @@ plugins {
     id 'org.jetbrains.kotlin.android'
 }
 
+// Added repositories directly inside app module configuration
+repositories {
+    google()
+    mavenCentral()
+}
+
 android {
     namespace 'com.example.mobileetl'
     compileSdk 34
@@ -34,6 +40,23 @@ android {
     composeOptions {
         kotlinCompilerExtensionVersion '1.5.2'
     }
+}
+
+dependencies {
+    implementation 'androidx.core:core-ktx:1.12.0'
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.6.2'
+    implementation 'androidx.activity:activity-compose:1.8.1'
+    
+    // Jetpack Compose UI Engine
+    implementation platform('androidx.compose:compose-bom:2023.08.00')
+    implementation 'androidx.compose.ui:ui'
+    implementation 'androidx.compose.ui:ui-graphics'
+    implementation 'androidx.compose.ui:ui-tooling-preview'
+    implementation 'androidx.compose.material3:material3'
+    
+    // JSON parsing support
+    implementation 'com.google.code.gson:gson:2.10.1'
+}
 }
 
 dependencies {
