@@ -2,7 +2,7 @@ name: Build Mobile ETL APK
 
 on:
   push:
-    branches: [ "main", "master" ] # Automatically triggers on both "main" and "master" branches
+    branches: [ "main", "master" ]
   workflow_dispatch:
 
 jobs:
@@ -17,23 +17,61 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
-          cache: 'gradle'
 
-      - name: Locate, Permiss, and Build Android Project
+      # 1. Install Gradle directly on the virtual machine
+      - name: Install System Gradle
         run: |
-          # 1. Automatically find the gradlew file inside your repository
-          GRADLEW_PATH=$(find . -name "gradlew" -print -quit)
-          
-          if [ -z "$GRADLEW_PATH" ]; then
-            echo "::error::gradlew wrapper file could not be found anywhere in your repository directory tree! Please make sure you have committed the 'gradlew' file."
+          sudo apt-get update
+          sudo apt-get install -y gradle
+
+      # 2. Find where your project is and generate gradlew automatically
+      - name: Auto-Generate Gradle Wrapper
+        run: |
+          SETTINGS_PATH=$(find . -name "settings.gradle" -print -quit)
+          if [ -z "$SETTINGS_PATH" ]; then
+            echo "::error::Could not find settings.gradle. Please ensure your project folders are uploaded to GitHub."
             exit 1
           fi
+          PROJECT_DIR=$(dirname "$SETTINGS_PATH")
+          echo "Android project found at: $PROJECT_DIR"
           
-          GRADLEW_DIR=$(dirname "$GRADLEW_PATH")
-          echo "Found gradlew wrapper at: $GRADLEW_PATH"
-          echo "Target project directory: $GRADLEW_DIR"
+          cd "$PROJECT_DIR"
           
-          # 2. Navigate to that directory and grant execute permissions
+          # Generate the wrapper files dynamically
+          echo "Generating Gradle wrapper..."
+          gradle wrapper --gradle-version 8.2
+          
+          # Ensure execution permissions are granted
+          chmod +x ./gradlew
+          
+          # Save the folder path for the next step
+          echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
+
+      # 3. Build the app using the newly generated wrapper
+      - name: Build Debug APK
+        run: |
+          cd "${{ env.PROJECT_DIR }}"
+          ./gradlew assembleDebug
+
+      # 4. Find the finished APK file
+      - name: Locate Compiled APK
+        run: |
+          cd "${{ env.PROJECT_DIR }}"
+          APK_PATH=$(find . -name "app-debug.apk" -print -quit)
+          if [ -z "$APK_PATH" ]; then
+            echo "::error::Could not locate the compiled app-debug.apk output file!"
+            exit 1
+          fi
+          REAL_PATH=$(realpath "$APK_PATH")
+          echo "Found APK at: $REAL_PATH"
+          echo "APK_UPLOAD_PATH=$REAL_PATH" >> $GITHUB_ENV
+
+      # 5. Save the APK as a download link
+      - name: Upload Compiled APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Mobile-ETL-Engine
+          path: ${{ env.APK_UPLOAD_PATH }}
           cd "$GRADLEW_DIR"
           chmod +x ./gradlew
           
